@@ -103,10 +103,12 @@ extension View {
 @available(iOS 13.0, OSX 10.15, tvOS 13.0, watchOS 6.0, *)
 struct ScrollViewProxyPreferenceData: Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.id == rhs.id
+        lhs.id == rhs.id &&
+        lhs.size == rhs.size
     }
 
     var geometry: GeometryProxy
+    var size: CGSize
     var id: AnyHashable
 }
 
@@ -125,7 +127,7 @@ struct ScrollViewProxyPreferenceModifier: ViewModifier {
         content.background(GeometryReader { geometry in
             Color.clear.preference(
                 key: ScrollViewProxyPreferenceKey.self,
-                value: [.init(geometry: geometry, id: self.id)]
+                value: [.init(geometry: geometry, size: geometry.size, id: self.id)]
             )
         })
     }
