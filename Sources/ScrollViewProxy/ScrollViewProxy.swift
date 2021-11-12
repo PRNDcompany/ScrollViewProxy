@@ -93,7 +93,7 @@ extension View {
     public func scrollId<ID: Hashable>(_ id: ID) -> some View {
         modifier(ScrollViewProxyPreferenceModifier(id: id))
     }
-    
+
     @available(swift, obsoleted: 1.0, renamed: "scrollId(_:)")
     public func id<ID: Hashable>(_ id: ID, scrollView: ScrollViewProxy) -> some View { self }
 }
@@ -106,8 +106,7 @@ struct ScrollViewProxyPreferenceData: Equatable {
         lhs.id == rhs.id &&
         lhs.size == rhs.size
     }
-
-    var geometry: GeometryProxy
+    var frame: CGRect
     var size: CGSize
     var id: AnyHashable
 }
@@ -121,13 +120,31 @@ struct ScrollViewProxyPreferenceKey: PreferenceKey {
 }
 
 @available(iOS 13.0, OSX 10.15, tvOS 13.0, watchOS 6.0, *)
+struct ScrollViewProxySpaceKey: EnvironmentKey {
+    static var defaultValue: UUID = UUID()
+}
+
+@available(iOS 13.0, OSX 10.15, tvOS 13.0, watchOS 6.0, *)
+extension EnvironmentValues {
+    var proxySpace: UUID {
+        get { self[ScrollViewProxySpaceKey.self] }
+        set { self[ScrollViewProxySpaceKey.self] = newValue }
+    }
+}
+
+@available(iOS 13.0, OSX 10.15, tvOS 13.0, watchOS 6.0, *)
 struct ScrollViewProxyPreferenceModifier: ViewModifier {
+    @Environment(\.proxySpace) var proxySpace
+
     let id: AnyHashable
+
     func body(content: Content) -> some View {
         content.background(GeometryReader { geometry in
             Color.clear.preference(
                 key: ScrollViewProxyPreferenceKey.self,
-                value: [.init(geometry: geometry, size: geometry.size, id: self.id)]
+                value: [.init(frame: geometry.frame(in: .named(proxySpace)),
+                              size: geometry.size,
+                              id: self.id)]
             )
         })
     }
@@ -140,7 +157,7 @@ public struct ScrollViewReader<Content: View>: View {
     private var content: (ScrollViewProxy) -> Content
 
     @State private var proxy = ScrollViewProxy()
-    
+
     public init(@ViewBuilder content: @escaping (ScrollViewProxy) -> Content) {
         self.content = content
     }
@@ -148,9 +165,10 @@ public struct ScrollViewReader<Content: View>: View {
     public var body: some View {
         content(proxy)
             .coordinateSpace(name: proxy.space)
+            .environment(\.proxySpace, proxy.space)
             .transformPreference(ScrollViewProxyPreferenceKey.self) { preferences in
                 preferences.forEach { preference in
-                    self.proxy.save(geometry: preference.geometry, for: preference.id)
+                    self.proxy.save(frame: preference.frame, for: preference.id)
                 }
             }
             .onPreferenceChange(ScrollViewProxyPreferenceKey.self) { _ in
@@ -181,7 +199,7 @@ public struct ScrollViewProxy {
     fileprivate var space: UUID = UUID()
 
     fileprivate init() {}
-    
+
     /// A publisher that publishes changes to the scroll views offset
     public fileprivate(set) var offset: OffsetPublisher = Just(.zero).eraseToAnyPublisher()
 
@@ -250,8 +268,7 @@ public struct ScrollViewProxy {
         return CGRect(origin: origin, size: visibleSize)
     }
 
-    fileprivate func save(geometry: GeometryProxy, for id: AnyHashable) {
-        coordinator.frames[id] = geometry.frame(in: .named(space))
+    fileprivate func save(frame: CGRect, for id: AnyHashable) {
+        coordinator.frames[id] = frame
     }
 }
-
